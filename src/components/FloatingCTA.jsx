@@ -4,7 +4,7 @@ import { t } from '../utils/helpers';
 export default function FloatingCTA({ lang, clinicSettings }) {
   const lineLink = `https://line.me/R/ti/p/%40${String(clinicSettings?.line_id || 'hugdeehome').replace('@', '')}`;
   const phoneLink = `tel:${clinicSettings?.phone || '094-675-3557'}`;
-  const portalUrl = import.meta.env.VITE_CLINIC_PORTAL_URL || 'https://hugdee-portal.vercel.app';
+  const portalUrl = import.meta.env.VITE_CLINIC_PORTAL_URL || 'https://app.hugdeehome.com';
   
   // Clean Map Link
   const mapLink = clinicSettings?.facebook_url || "https://maps.google.com/?q=Hug+Dee+Home+Clinic+Phayao";

@@ -9,7 +9,7 @@ export default function Navbar({ lang, setLang, clinicSettings }) {
   const location = useLocation();
 
   // Redirect to existing portal
-  const portalUrl = import.meta.env.VITE_CLINIC_PORTAL_URL || 'https://hugdee-portal.vercel.app';
+  const portalUrl = import.meta.env.VITE_CLINIC_PORTAL_URL || 'https://app.hugdeehome.com';
 
   // Opening hours text from settings or default
   const openingHours = lang === 'en' ? clinicSettings?.opening_hours_en : clinicSettings?.opening_hours_th;
