@@ -1,0 +1,117 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --primary-blue: #8FC9E3;
+    --primary-brown: #A86632;
+    --warm-yellow: #F4D27E;
+    --soft-pink: #E95BA8;
+    --warm-white: #FFFDF9;
+    --cream: #FFF6E7;
+    --soft-blue: #EAF6FB;
+    --text-dark: #5C4637;
+    --text-muted: #8D7A6E;
+  }
+
+  body {
+    @apply bg-brand-warm-white text-brand-text font-sans antialiased;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    @apply text-brand-text font-semibold tracking-tight;
+  }
+
+  p {
+    @apply leading-thai-relaxed;
+  }
+}
+
+/* Restrained smooth animations (200ms - 600ms) */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeInSimple {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-fade-simple {
+  animation: fadeInSimple 0.3s ease-out forwards;
+}
+
+/* Custom Minimal Scrollbar */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+::-webkit-scrollbar-track {
+  background: #FFF6E7;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #D9C8B8;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #A86632;
+}
+
+/* Focus styling for accessibility */
+*:focus-visible {
+  outline: 2px solid #8FC9E3;
+  outline-offset: 2px;
+}
+
+/* Clean cards and interactive elements */
+.brand-card {
+  @apply bg-white border border-brand-border rounded-2xl p-6 transition-all duration-300;
+}
+
+.brand-card:hover {
+  @apply shadow-soft border-brand-blue/40;
+}
+
+/* SweetAlert customization */
+.swal2-popup {
+  font-family: 'Noto Sans Thai', 'Inter', sans-serif !important;
+  border-radius: 20px !important;
+  background: #FFFDF9 !important;
+  color: #5C4637 !important;
+  border: 1px solid #EFE7DC !important;
+}
+
+.swal2-title {
+  color: #5C4637 !important;
+  font-weight: 600 !important;
+}
+
+.swal2-confirm {
+  background-color: #8FC9E3 !important;
+  color: #5C4637 !important;
+  font-weight: 600 !important;
+  border-radius: 12px !important;
+}
+
+.swal2-cancel {
+  background-color: #EFE7DC !important;
+  color: #5C4637 !important;
+  font-weight: 500 !important;
+  border-radius: 12px !important;
+}
