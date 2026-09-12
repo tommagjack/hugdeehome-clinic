@@ -6,12 +6,12 @@ export default function Logo({
   variant = 'default', // 'default' | 'footer' | 'admin' | 'mark-only'
   className = '' 
 }) {
-  const logoUrl = settings?.logoUrl;
+  const logoUrl = settings?.logoUrl || '/logo.png';
   const clinicNameTh = settings?.clinicNameTh || 'คลินิกพัฒนาการเด็กบ้านฮักดี';
   const clinicNameEn = settings?.clinicNameEn || 'HugDeeHome';
   const slogan = settings?.slogan || 'อบอุ่นเหมือนบ้าน พัฒนาการก้าวหน้าด้วยรัก';
 
-  // If Admin uploaded an official master logo, render it preserving exact aspect ratio
+  // If master logo exists or is configured, render it preserving exact aspect ratio
   if (logoUrl) {
     return (
       <Link 
@@ -22,16 +22,23 @@ export default function Logo({
         <img 
           src={logoUrl} 
           alt={clinicNameTh} 
-          className="h-10 md:h-12 w-auto object-contain"
+          className="h-10 md:h-12 w-auto object-contain rounded-full"
         />
         {variant !== 'mark-only' && (
           <div className="flex flex-col">
             <span className="font-bold text-brand-text text-base md:text-lg leading-tight">
               {clinicNameTh}
             </span>
-            <span className="text-xs text-brand-brown font-medium tracking-wide">
-              {clinicNameEn}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-brand-brown font-medium tracking-wide">
+                {clinicNameEn}
+              </span>
+              {variant === 'footer' && (
+                <span className="hidden sm:inline text-xs text-brand-text-muted">
+                  • {slogan}
+                </span>
+              )}
+            </div>
           </div>
         )}
       </Link>

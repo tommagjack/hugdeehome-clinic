@@ -6,7 +6,7 @@ export const INITIAL_SITE_SETTINGS = {
   clinicNameEn: 'HugDeeHome',
   slogan: 'อบอุ่นเหมือนบ้าน พัฒนาการก้าวหน้าด้วยรัก',
   subheadline: 'พื้นที่แห่งการเรียนรู้และพัฒนาศักยภาพเด็ก ผ่านกิจกรรมที่ออกแบบให้เหมาะสมกับเด็กแต่ละคน',
-  logoUrl: '', // Admin can upload logo or fallback to component
+  logoUrl: '/logo.png', // Official master logo
   faviconUrl: '/favicon.svg',
   heroImageUrl: '',
   phone: '094-675-3557',

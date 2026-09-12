@@ -47,6 +47,8 @@ export const storage = {
     return {
       ...INITIAL_SITE_SETTINGS,
       ...loaded,
+      logoUrl: loaded?.logoUrl || INITIAL_SITE_SETTINGS.logoUrl,
+      faviconUrl: loaded?.faviconUrl || INITIAL_SITE_SETTINGS.faviconUrl,
       openingHours: {
         ...INITIAL_SITE_SETTINGS.openingHours,
         ...(loaded?.openingHours || {})
