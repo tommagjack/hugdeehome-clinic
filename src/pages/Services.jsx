@@ -45,6 +45,12 @@ export default function Services({ settings }) {
       }
     }
     loadServices();
+
+    const handleUpdate = () => {
+      loadServices();
+    };
+    window.addEventListener('hugdee_data_updated', handleUpdate);
+    return () => window.removeEventListener('hugdee_data_updated', handleUpdate);
   }, []);
 
   const filteredServices = selectedCategory === 'ทั้งหมด'

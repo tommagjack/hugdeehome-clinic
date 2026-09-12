@@ -32,6 +32,12 @@ export default function AssessmentList({ settings }) {
       }
     }
     loadAssessments();
+
+    const handleUpdate = () => {
+      loadAssessments();
+    };
+    window.addEventListener('hugdee_data_updated', handleUpdate);
+    return () => window.removeEventListener('hugdee_data_updated', handleUpdate);
   }, []);
 
   return (

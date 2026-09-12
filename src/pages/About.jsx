@@ -31,6 +31,12 @@ export default function About({ settings }) {
       }
     }
     loadTeam();
+
+    const handleUpdate = () => {
+      loadTeam();
+    };
+    window.addEventListener('hugdee_data_updated', handleUpdate);
+    return () => window.removeEventListener('hugdee_data_updated', handleUpdate);
   }, []);
 
   return (

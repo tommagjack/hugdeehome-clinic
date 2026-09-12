@@ -48,6 +48,12 @@ export default function HomeGuide({ settings }) {
       }
     }
     loadGuides();
+
+    const handleUpdate = () => {
+      loadGuides();
+    };
+    window.addEventListener('hugdee_data_updated', handleUpdate);
+    return () => window.removeEventListener('hugdee_data_updated', handleUpdate);
   }, []);
 
   const filteredGuides = guides.filter(guide => {

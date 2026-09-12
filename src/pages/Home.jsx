@@ -42,6 +42,12 @@ export default function Home({ settings }) {
       }
     }
     loadData();
+
+    const handleUpdate = () => {
+      loadData();
+    };
+    window.addEventListener('hugdee_data_updated', handleUpdate);
+    return () => window.removeEventListener('hugdee_data_updated', handleUpdate);
   }, []);
 
   const phone = settings?.phone || '094-675-3557';
