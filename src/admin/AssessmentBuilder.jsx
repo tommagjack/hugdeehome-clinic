@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { 
   Plus, 
@@ -14,13 +14,29 @@ import {
   Sliders,
   Settings,
   X,
-  FileText
+  FileText,
+  Upload,
+  Download,
+  FileSpreadsheet,
+  FileCode,
+  Check,
+  AlertCircle,
+  Sparkles
 } from 'lucide-react';
 import Button from '../components/common/Button';
 import Badge from '../components/common/Badge';
 import Alert from '../components/common/Alert';
 import LoadingState from '../components/common/LoadingState';
 import { storage } from '../services/storage';
+import {
+  downloadFile,
+  generateQuestionsCsvTemplate,
+  exportCurrentQuestionsToCsv,
+  generateJsonTemplate,
+  exportAssessmentToJson,
+  parseCsvToQuestions,
+  parseImportedJson
+} from '../services/assessmentImportExport';
 
 export default function AssessmentBuilder() {
   const { id } = useParams();
@@ -87,6 +103,18 @@ export default function AssessmentBuilder() {
   const [loading, setLoading] = useState(true);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+
+  // Import / Export State
+  const [exportModalOpen, setExportModalOpen] = useState(false);
+  const [importModalOpen, setImportModalOpen] = useState(false);
+  const [importRawText, setImportRawText] = useState('');
+  const [importFileName, setImportFileName] = useState('');
+  const [importParsed, setImportParsed] = useState(null);
+  const [importMode, setImportMode] = useState('replace');
+  const [importError, setImportError] = useState(null);
+  const [importSuccess, setImportSuccess] = useState(null);
+  const [activeImportTab, setActiveImportTab] = useState('file');
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     async function loadData() {
@@ -191,6 +219,130 @@ export default function AssessmentBuilder() {
     });
   };
 
+  // --- Import / Export Handlers ---
+  const processImportContent = (text, fileName = '') => {
+    setImportError(null);
+    const trimmed = (text || '').trim();
+    if (!trimmed) {
+      setImportParsed(null);
+      return;
+    }
+
+    // Try JSON first
+    if (trimmed.startsWith('{') || trimmed.startsWith('[') || (fileName && fileName.toLowerCase().endsWith('.json'))) {
+      const parsedJson = parseImportedJson(trimmed);
+      if (parsedJson) {
+        setImportParsed(parsedJson);
+        setImportMode('replace');
+        return;
+      }
+    }
+
+    // Otherwise try CSV
+    const csvQuestions = parseCsvToQuestions(trimmed);
+    if (csvQuestions && csvQuestions.length > 0) {
+      setImportParsed({
+        type: 'questions_only',
+        questions: csvQuestions
+      });
+      setImportMode('replace');
+      return;
+    }
+
+    setImportError('ไม่สามารถอ่านข้อมูลได้ กรุณาตรวจสอบว่าเป็นไฟล์ JSON หรือ CSV ที่ถูกต้องตามแม่แบบ');
+    setImportParsed(null);
+  };
+
+  const handleFileUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImportFileName(file.name);
+    setImportError(null);
+    setImportSuccess(null);
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target.result;
+      setImportRawText(text);
+      processImportContent(text, file.name);
+    };
+    reader.onerror = () => {
+      setImportError('ไม่สามารถอ่านไฟล์ได้ กรุณาลองใหม่อีกครั้ง');
+    };
+    reader.readAsText(file, 'utf-8');
+  };
+
+  const handleApplyImport = () => {
+    if (!importParsed) return;
+
+    if (importParsed.type === 'full_assessment' && importMode === 'replace') {
+      setAssessment(importParsed.data);
+      setSelectedQuestionIndex(0);
+      setImportSuccess(`นำเข้าแบบประเมิน "${importParsed.data.title}" สำเร็จ (${importParsed.data.questions?.length || 0} ข้อ)`);
+    } else if (importParsed.type === 'full_assessment' && importMode === 'append') {
+      const currentQuestions = assessment.questions || [];
+      const newQuestions = (importParsed.data.questions || []).map((q, idx) => ({
+        ...q,
+        id: `q_imp_${Date.now()}_${idx}`,
+        displayOrder: currentQuestions.length + idx + 1
+      }));
+      setAssessment({
+        ...assessment,
+        questions: [...currentQuestions, ...newQuestions]
+      });
+      setImportSuccess(`เพิ่มข้อคำถามต่อท้ายสำเร็จ (${newQuestions.length} ข้อ)`);
+    } else if (importParsed.type === 'questions_only') {
+      const incomingQuestions = importParsed.questions || [];
+      if (importMode === 'replace') {
+        setAssessment({
+          ...assessment,
+          questions: incomingQuestions
+        });
+        setSelectedQuestionIndex(0);
+        setImportSuccess(`แทนที่ข้อคำถามสำเร็จ (${incomingQuestions.length} ข้อ)`);
+      } else {
+        const currentQuestions = assessment.questions || [];
+        const newQuestions = incomingQuestions.map((q, idx) => ({
+          ...q,
+          id: `q_imp_${Date.now()}_${idx}`,
+          displayOrder: currentQuestions.length + idx + 1
+        }));
+        setAssessment({
+          ...assessment,
+          questions: [...currentQuestions, ...newQuestions]
+        });
+        setImportSuccess(`เพิ่มข้อคำถามต่อท้ายสำเร็จ (${newQuestions.length} ข้อ)`);
+      }
+    }
+
+    setTimeout(() => {
+      setImportModalOpen(false);
+      setImportRawText('');
+      setImportParsed(null);
+      setImportFileName('');
+      setImportSuccess(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }, 1200);
+  };
+
+  const handleDownloadCsvTemplate = () => {
+    const csv = generateQuestionsCsvTemplate();
+    downloadFile(csv, 'template_assessment_questions.csv', 'text/csv;charset=utf-8;');
+  };
+
+  const handleDownloadJsonTemplate = () => {
+    const json = generateJsonTemplate();
+    downloadFile(JSON.stringify(json, null, 2), 'template_assessment_full.json', 'application/json;charset=utf-8;');
+  };
+
+  const handleExportCurrentJson = () => {
+    exportAssessmentToJson(assessment);
+  };
+
+  const handleExportCurrentCsv = () => {
+    exportCurrentQuestionsToCsv(assessment.questions, assessment.title || assessment.slug || 'assessment');
+  };
+
   // Save full assessment to storage
   const handleSave = async (statusOverride) => {
     const payload = {
@@ -239,6 +391,26 @@ export default function AssessmentBuilder() {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            variant="outline"
+            size="sm"
+            icon={Upload}
+            onClick={() => setImportModalOpen(true)}
+            className="border-brand-border hover:border-brand-brown text-brand-text"
+          >
+            นำเข้า (Import)
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            icon={Download}
+            onClick={() => setExportModalOpen(true)}
+            className="border-brand-border hover:border-brand-brown text-brand-text"
+          >
+            ส่งออก / Template
+          </Button>
+
           <Button
             variant="outline"
             size="sm"
@@ -297,15 +469,26 @@ export default function AssessmentBuilder() {
             <span className="font-bold text-sm text-brand-text">
               รายการคำถาม ({assessment.questions.length})
             </span>
-            <Button
-              variant="cream"
-              size="sm"
-              icon={Plus}
-              onClick={handleAddQuestion}
-              className="text-xs px-2.5 py-1"
-            >
-              เพิ่มข้อ
-            </Button>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setImportModalOpen(true)}
+                className="px-2 py-1 rounded-lg border border-brand-border hover:bg-brand-cream text-brand-brown text-xs font-medium flex items-center gap-1 transition-colors"
+                title="นำเข้าคำถามจากไฟล์ Excel/CSV หรือ JSON"
+              >
+                <Upload className="w-3.5 h-3.5" />
+                <span>นำเข้า</span>
+              </button>
+              <Button
+                variant="cream"
+                size="sm"
+                icon={Plus}
+                onClick={handleAddQuestion}
+                className="text-xs px-2.5 py-1"
+              >
+                เพิ่มข้อ
+              </Button>
+            </div>
           </div>
 
           <div className="space-y-2 max-h-[600px] overflow-y-auto pr-1">
@@ -646,6 +829,387 @@ export default function AssessmentBuilder() {
             <div className="mt-8 pt-4 border-t border-brand-border flex justify-end">
               <Button variant="primary" size="md" onClick={() => setPreviewOpen(false)}>
                 ปิดหน้าต่างพรีวิว
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Export / Template Modal */}
+      {exportModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-simple">
+          <div className="bg-white rounded-3xl border border-brand-border shadow-soft-xl max-w-xl w-full p-6 sm:p-7 relative max-h-[90vh] overflow-y-auto animate-fade-in space-y-6">
+            <button
+              onClick={() => setExportModalOpen(false)}
+              className="absolute top-5 right-5 text-neutral-400 hover:text-brand-text p-1.5 rounded-xl hover:bg-brand-cream transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="border-b border-brand-border pb-4">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="w-8 h-8 rounded-xl bg-brand-soft-blue flex items-center justify-center text-brand-blue">
+                  <Download className="w-4 h-4" />
+                </div>
+                <h2 className="text-xl font-bold text-brand-text">
+                  ส่งออกข้อมูล & ดาวน์โหลดแม่แบบ (Template)
+                </h2>
+              </div>
+              <p className="text-xs text-brand-text-muted">
+                ดาวน์โหลดไฟล์ตัวอย่างสำหรับเตรียมข้อสอบ หรือส่งออกข้อมูลแบบประเมินปัจจุบัน
+              </p>
+            </div>
+
+            {/* Section 1: Blank Templates */}
+            <div className="space-y-3">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-brand-brown flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5" /> แม่แบบเปล่าสำหรับเริ่มต้น (Blank Templates)
+              </h3>
+              
+              {/* CSV Template */}
+              <div className="p-4 rounded-2xl bg-emerald-50/50 border border-emerald-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center flex-shrink-0">
+                    <FileSpreadsheet className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-brand-text">แม่แบบ Excel / CSV (คำถาม)</h4>
+                    <p className="text-xs text-brand-text-muted mt-0.5">
+                      มีหัวตารางภาษาไทย พร้อมตัวอย่างตัวเลือกและคะแนน เปิดแก้ไขใน Microsoft Excel ได้ทันทีโดยฟอนต์ไม่เพี้ยน (UTF-8 BOM)
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  icon={Download}
+                  onClick={handleDownloadCsvTemplate}
+                  className="bg-white hover:bg-emerald-50 border-emerald-300 text-emerald-800 text-xs flex-shrink-0 font-medium"
+                >
+                  ดาวน์โหลด CSV
+                </Button>
+              </div>
+
+              {/* JSON Template */}
+              <div className="p-4 rounded-2xl bg-indigo-50/50 border border-indigo-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center flex-shrink-0">
+                    <FileCode className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-brand-text">แม่แบบโครงสร้างแบบประเมิน (JSON)</h4>
+                    <p className="text-xs text-brand-text-muted mt-0.5">
+                      มีข้อมูลครบทุกส่วน: ชื่อ, คำอธิบาย, ช่วงวัย, เกณฑ์คำนวณคะแนน (Thresholds) และข้อคำถาม
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  icon={Download}
+                  onClick={handleDownloadJsonTemplate}
+                  className="bg-white hover:bg-indigo-50 border-indigo-300 text-indigo-800 text-xs flex-shrink-0 font-medium"
+                >
+                  ดาวน์โหลด JSON
+                </Button>
+              </div>
+            </div>
+
+            {/* Section 2: Current Assessment Export */}
+            <div className="space-y-3 pt-2 border-t border-brand-border/60">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-brand-text-muted">
+                ส่งออกชุดแบบประเมินนี้ ({assessment.questions?.length || 0} ข้อ)
+              </h3>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={handleExportCurrentCsv}
+                  className="p-3.5 rounded-2xl border border-brand-border hover:border-brand-brown/40 hover:bg-brand-cream/30 text-left transition-all group"
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+                    <span className="text-xs font-bold text-brand-text group-hover:text-brand-brown">
+                      ส่งออกเป็น CSV (Excel)
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-brand-text-muted">
+                    ดาวน์โหลดเฉพาะรายการคำถาม {assessment.questions?.length || 0} ข้อ พร้อมตัวเลือกและคะแนน
+                  </p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleExportCurrentJson}
+                  className="p-3.5 rounded-2xl border border-brand-border hover:border-brand-blue/50 hover:bg-brand-soft-blue/30 text-left transition-all group"
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <FileCode className="w-4 h-4 text-brand-blue" />
+                    <span className="text-xs font-bold text-brand-text group-hover:text-brand-blue">
+                      ส่งออกเป็น JSON (ครบชุด)
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-brand-text-muted">
+                    ส่งออกทั้งแบบประเมิน เกณฑ์คะแนน และข้อคำถามเพื่อสำรองข้อมูล (Backup)
+                  </p>
+                </button>
+              </div>
+            </div>
+
+            <div className="pt-3 border-t border-brand-border flex justify-end">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setExportModalOpen(false)}
+              >
+                ปิดหน้าต่าง
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Import Modal */}
+      {importModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-simple">
+          <div className="bg-white rounded-3xl border border-brand-border shadow-soft-xl max-w-2xl w-full p-6 sm:p-7 relative max-h-[90vh] overflow-y-auto animate-fade-in space-y-5">
+            <button
+              onClick={() => {
+                setImportModalOpen(false);
+                setImportRawText('');
+                setImportParsed(null);
+                setImportError(null);
+                setImportSuccess(null);
+              }}
+              className="absolute top-5 right-5 text-neutral-400 hover:text-brand-text p-1.5 rounded-xl hover:bg-brand-cream transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="border-b border-brand-border pb-4">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="w-8 h-8 rounded-xl bg-brand-soft-blue flex items-center justify-center text-brand-blue">
+                  <Upload className="w-4 h-4" />
+                </div>
+                <h2 className="text-xl font-bold text-brand-text">
+                  นำเข้าแบบประเมิน (Import)
+                </h2>
+              </div>
+              <p className="text-xs text-brand-text-muted">
+                รองรับการนำเข้าจากไฟล์ Excel (.csv) หรือไฟล์โครงสร้างแบบประเมิน (.json)
+              </p>
+            </div>
+
+            {/* Mode Tabs: File Upload vs Direct Paste */}
+            <div className="flex items-center gap-2 border-b border-brand-border pb-2">
+              <button
+                type="button"
+                onClick={() => setActiveImportTab('file')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                  activeImportTab === 'file'
+                    ? 'bg-brand-brown text-white shadow-xs'
+                    : 'text-brand-text-muted hover:text-brand-text hover:bg-brand-cream'
+                }`}
+              >
+                📁 อัพโหลดไฟล์ (.csv, .json)
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveImportTab('paste')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                  activeImportTab === 'paste'
+                    ? 'bg-brand-brown text-white shadow-xs'
+                    : 'text-brand-text-muted hover:text-brand-text hover:bg-brand-cream'
+                }`}
+              >
+                📝 วางข้อความ JSON / CSV
+              </button>
+            </div>
+
+            {/* Tab 1: File Dropzone */}
+            {activeImportTab === 'file' && (
+              <div>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  accept=".csv,.json,.txt"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                />
+                <div
+                  onClick={() => fileInputRef.current?.click()}
+                  className="border-2 border-dashed border-brand-border hover:border-brand-brown/50 bg-brand-warm-white hover:bg-white rounded-2xl p-6 text-center cursor-pointer transition-all space-y-2 group"
+                >
+                  <div className="w-12 h-12 mx-auto rounded-2xl bg-brand-cream/60 group-hover:scale-105 transition-transform flex items-center justify-center text-brand-brown">
+                    <Upload className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-brand-text">
+                      คลิกเพื่อเลือกไฟล์ หรือลากไฟล์มาวางที่นี่
+                    </p>
+                    <p className="text-[11px] text-brand-text-muted mt-0.5">
+                      รองรับไฟล์ .csv (ตาราง Excel) และ .json (ไฟล์โครงสร้าง)
+                    </p>
+                  </div>
+                  {importFileName && (
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-brand-soft-blue text-brand-blue text-xs font-medium">
+                      <FileText className="w-3.5 h-3.5" />
+                      <span>{importFileName}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Tab 2: Text Area */}
+            {activeImportTab === 'paste' && (
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-brand-text block">
+                  วางข้อความ JSON หรือ CSV ที่นี่:
+                </label>
+                <textarea
+                  rows={6}
+                  value={importRawText}
+                  onChange={(e) => {
+                    setImportRawText(e.target.value);
+                    processImportContent(e.target.value);
+                  }}
+                  placeholder='ตัวอย่าง CSV: "ข้อที่","คำถาม","หมวดหมู่","ตัวเลือกที่ 1","คะแนนที่ 1" ... หรือโค้ด JSON'
+                  className="w-full p-3 rounded-2xl border border-brand-border bg-brand-warm-white font-mono text-xs focus:bg-white focus:outline-brand-blue"
+                />
+              </div>
+            )}
+
+            {/* Error Message */}
+            {importError && (
+              <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                <span>{importError}</span>
+              </div>
+            )}
+
+            {/* Success Message */}
+            {importSuccess && (
+              <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs flex items-center gap-2">
+                <Check className="w-4 h-4 flex-shrink-0" />
+                <span className="font-medium">{importSuccess}</span>
+              </div>
+            )}
+
+            {/* Parsed Preview & Options */}
+            {importParsed && (
+              <div className="p-4 rounded-2xl bg-brand-warm-white border border-brand-border space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Badge variant={importParsed.type === 'full_assessment' ? 'blue' : 'yellow'} size="sm">
+                      {importParsed.type === 'full_assessment' ? 'ชุดแบบประเมินเต็ม (Full JSON)' : 'รายการข้อคำถาม (Questions)'}
+                    </Badge>
+                    <span className="text-xs font-bold text-brand-text">
+                      {importParsed.type === 'full_assessment'
+                        ? `"${importParsed.data.title}" (${importParsed.data.questions?.length || 0} ข้อ)`
+                        : `ตรวจพบข้อคำถาม ${importParsed.questions?.length || 0} ข้อ`}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Import Mode Selector */}
+                <div className="pt-2 border-t border-brand-border/60">
+                  <label className="text-xs font-bold text-brand-text block mb-2">
+                    รูปแบบการนำเข้าข้อมูล:
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <label className={`p-2.5 rounded-xl border text-xs cursor-pointer flex items-center gap-2 transition-all ${
+                      importMode === 'replace'
+                        ? 'bg-white border-brand-brown font-medium shadow-xs text-brand-text'
+                        : 'border-brand-border text-brand-text-muted hover:bg-white'
+                    }`}>
+                      <input
+                        type="radio"
+                        name="importMode"
+                        value="replace"
+                        checked={importMode === 'replace'}
+                        onChange={() => setImportMode('replace')}
+                        className="accent-brand-brown"
+                      />
+                      <span>
+                        {importParsed.type === 'full_assessment'
+                          ? 'แทนที่แบบประเมินเดิมทั้งหมด'
+                          : 'แทนที่ข้อคำถามเดิมทั้งหมด'}
+                      </span>
+                    </label>
+
+                    <label className={`p-2.5 rounded-xl border text-xs cursor-pointer flex items-center gap-2 transition-all ${
+                      importMode === 'append'
+                        ? 'bg-white border-brand-brown font-medium shadow-xs text-brand-text'
+                        : 'border-brand-border text-brand-text-muted hover:bg-white'
+                    }`}>
+                      <input
+                        type="radio"
+                        name="importMode"
+                        value="append"
+                        checked={importMode === 'append'}
+                        onChange={() => setImportMode('append')}
+                        className="accent-brand-brown"
+                      />
+                      <span>เพิ่มต่อท้ายข้อคำถามเดิมที่มีอยู่</span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Preview Questions Snippet */}
+                <div className="pt-2 border-t border-brand-border/60">
+                  <span className="text-[11px] font-medium text-brand-text-muted block mb-1.5">
+                    ตัวอย่างข้อคำถามที่จะนำเข้า:
+                  </span>
+                  <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                    {(importParsed.type === 'full_assessment' ? importParsed.data.questions : importParsed.questions)
+                      ?.slice(0, 3)
+                      .map((q, idx) => (
+                        <div key={idx} className="p-2 rounded-xl bg-white border border-brand-border text-[11px] flex justify-between items-center gap-2">
+                          <div className="truncate flex-1">
+                            <span className="font-bold text-brand-brown mr-1">{idx + 1}.</span>
+                            <span className="text-brand-text">{q.questionText}</span>
+                          </div>
+                          <span className="text-[10px] text-brand-text-muted flex-shrink-0">
+                            {q.options?.length || 0} ตัวเลือก
+                          </span>
+                        </div>
+                      ))}
+                    {(importParsed.type === 'full_assessment' ? importParsed.data.questions : importParsed.questions)?.length > 3 && (
+                      <p className="text-[10px] text-center text-brand-text-muted italic pt-1">
+                        ...และอีก {(importParsed.type === 'full_assessment' ? importParsed.data.questions : importParsed.questions).length - 3} ข้อ
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Actions */}
+            <div className="pt-3 border-t border-brand-border flex items-center justify-between">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setImportModalOpen(false);
+                  setImportRawText('');
+                  setImportParsed(null);
+                  setImportError(null);
+                  setImportSuccess(null);
+                }}
+              >
+                ยกเลิก
+              </Button>
+
+              <Button
+                variant="primary"
+                size="sm"
+                icon={Check}
+                disabled={!importParsed}
+                onClick={handleApplyImport}
+                className="font-semibold"
+              >
+                ยืนยันนำเข้าข้อมูล
               </Button>
             </div>
           </div>
