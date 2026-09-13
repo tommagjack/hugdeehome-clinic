@@ -11,6 +11,9 @@ export default function Badge({
     brown: 'bg-brand-cream text-brand-brown border-brand-brown/30',
     yellow: 'bg-brand-yellow/25 text-brand-text border-brand-yellow/50',
     pink: 'bg-brand-pink/15 text-brand-pink border-brand-pink/30',
+    purple: 'bg-purple-100 text-purple-700 border-purple-200',
+    emerald: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+    green: 'bg-emerald-100 text-emerald-800 border-emerald-200',
     cream: 'bg-brand-cream text-brand-text-muted border-brand-border',
     gray: 'bg-neutral-100 text-neutral-600 border-neutral-200'
   };

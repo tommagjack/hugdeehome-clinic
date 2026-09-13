@@ -219,6 +219,55 @@ export default function AssessmentBuilder() {
     });
   };
 
+  const handleAddThreshold = () => {
+    const thresholds = [...(assessment.scoringRules?.thresholds || [])];
+    const lastThreshold = thresholds[thresholds.length - 1];
+    const nextMinScore = lastThreshold ? (Number(lastThreshold.maxScore) + 1 || 0) : 0;
+    const nextMaxScore = nextMinScore + 3;
+    const nextLevel = thresholds.length + 1;
+
+    const colors = ['blue', 'yellow', 'pink', 'purple', 'emerald'];
+    const color = colors[(nextLevel - 1) % colors.length] || 'yellow';
+
+    const newThreshold = {
+      level: nextLevel,
+      minScore: nextMinScore,
+      maxScore: nextMaxScore,
+      badgeText: `ระดับที่ ${nextLevel}`,
+      color: color,
+      interpretation: 'คำอธิบายผลการประเมินสำหรับระดับนี้...',
+      recommendation: 'คำแนะนำการส่งเสริมหรือการดูแลสำหรับผู้ปกครอง...'
+    };
+
+    setAssessment({
+      ...assessment,
+      scoringRules: {
+        ...assessment.scoringRules,
+        thresholds: [...thresholds, newThreshold]
+      }
+    });
+  };
+
+  const handleDeleteThreshold = (tIdx) => {
+    const thresholds = [...(assessment.scoringRules?.thresholds || [])];
+    if (thresholds.length <= 1) {
+      alert('แบบประเมินต้องมีเกณฑ์ผลการประเมินอย่างน้อย 1 ระดับ');
+      return;
+    }
+    const updated = thresholds.filter((_, i) => i !== tIdx);
+    const reindexed = updated.map((t, idx) => ({
+      ...t,
+      level: idx + 1
+    }));
+    setAssessment({
+      ...assessment,
+      scoringRules: {
+        ...assessment.scoringRules,
+        thresholds: reindexed
+      }
+    });
+  };
+
   // --- Import / Export Handlers ---
   const processImportContent = (text, fileName = '') => {
     setImportError(null);
@@ -735,49 +784,112 @@ export default function AssessmentBuilder() {
 
           {/* Result Thresholds & Interpretations */}
           <div className="pt-4 border-t border-brand-border/60 space-y-4">
-            <h4 className="text-xs font-bold text-brand-text uppercase tracking-wider">
-              เกณฑ์คะแนน & ระดับผลการประเมิน (3 ระดับ)
-            </h4>
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="text-xs font-bold text-brand-text uppercase tracking-wider">
+                  เกณฑ์คะแนน & ระดับผลการประเมิน ({assessment.scoringRules?.thresholds?.length || 0} ระดับ)
+                </h4>
+                <p className="text-[10px] text-brand-text-muted mt-0.5">
+                  กำหนดช่วงคะแนนและข้อความแปลผลตามระดับ
+                </p>
+              </div>
+              <Button
+                variant="cream"
+                size="sm"
+                icon={Plus}
+                onClick={handleAddThreshold}
+                className="text-xs px-2.5 py-1 text-brand-brown hover:bg-brand-cream border border-brand-border"
+              >
+                เพิ่มระดับ
+              </Button>
+            </div>
 
             {(assessment.scoringRules?.thresholds || []).map((t, tIdx) => (
-              <div key={tIdx} className="bg-brand-warm-white p-3.5 rounded-2xl border border-brand-border space-y-2 text-xs">
-                <div className="flex items-center justify-between font-bold">
-                  <span className="text-brand-brown">ระดับที่ {t.level}</span>
-                  <div className="flex items-center gap-1">
-                    <span>คะแนน:</span>
-                    <input
-                      type="number"
-                      value={t.minScore}
-                      onChange={(e) => handleUpdateThreshold(tIdx, 'minScore', e.target.value)}
-                      className="w-10 px-1 py-0.5 rounded border border-brand-border text-center"
-                    />
-                    <span>-</span>
-                    <input
-                      type="number"
-                      value={t.maxScore}
-                      onChange={(e) => handleUpdateThreshold(tIdx, 'maxScore', e.target.value)}
-                      className="w-10 px-1 py-0.5 rounded border border-brand-border text-center"
-                    />
+              <div key={tIdx} className="bg-brand-warm-white p-3.5 rounded-2xl border border-brand-border space-y-2.5 text-xs relative group">
+                <div className="flex items-center justify-between font-bold flex-wrap gap-2">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-brand-brown font-bold">ระดับที่ {t.level || tIdx + 1}</span>
+                    <select
+                      value={t.color || 'blue'}
+                      onChange={(e) => handleUpdateThreshold(tIdx, 'color', e.target.value)}
+                      className="text-[10px] px-1.5 py-0.5 rounded-md border border-brand-border bg-white text-brand-text font-normal cursor-pointer"
+                      title="เลือกสี Badge สำหรับระดับนี้"
+                    >
+                      <option value="blue">สีฟ้า (ปกติ/ดี)</option>
+                      <option value="yellow">สีเหลือง (เฝ้าระวัง/ติดตาม)</option>
+                      <option value="pink">สีส้ม/ชมพู (พบความเสี่ยง)</option>
+                      <option value="purple">สีม่วง</option>
+                      <option value="emerald">สีเขียว</option>
+                    </select>
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1 bg-white px-2 py-0.5 rounded-lg border border-brand-border">
+                      <span className="text-brand-text-muted text-[11px]">คะแนน:</span>
+                      <input
+                        type="number"
+                        value={t.minScore}
+                        onChange={(e) => handleUpdateThreshold(tIdx, 'minScore', e.target.value)}
+                        className="w-10 px-1 py-0.5 rounded border border-brand-border text-center font-bold text-brand-text"
+                      />
+                      <span className="text-brand-text-muted">-</span>
+                      <input
+                        type="number"
+                        value={t.maxScore}
+                        onChange={(e) => handleUpdateThreshold(tIdx, 'maxScore', e.target.value)}
+                        className="w-10 px-1 py-0.5 rounded border border-brand-border text-center font-bold text-brand-text"
+                      />
+                    </div>
+
+                    {(assessment.scoringRules?.thresholds?.length || 0) > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteThreshold(tIdx)}
+                        className="p-1 rounded-lg text-neutral-400 hover:text-brand-pink hover:bg-red-50 transition-colors"
+                        title="ลบระดับนี้"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </div>
                 </div>
 
                 <div>
-                  <label className="text-[11px] text-brand-text-muted block">ข้อความ Badge</label>
+                  <label className="text-[11px] text-brand-text-muted block font-medium mb-1">
+                    ข้อความ Badge
+                  </label>
                   <input
                     type="text"
                     value={t.badgeText}
                     onChange={(e) => handleUpdateThreshold(tIdx, 'badgeText', e.target.value)}
-                    className="w-full px-2.5 py-1.5 rounded-lg border border-brand-border bg-white text-xs"
+                    placeholder="เช่น อยู่ในเกณฑ์เบื้องต้น, พบข้อสังเกต..."
+                    className="w-full px-2.5 py-1.5 rounded-lg border border-brand-border bg-white text-xs text-brand-text focus:border-brand-blue focus:outline-none"
                   />
                 </div>
 
                 <div>
-                  <label className="text-[11px] text-brand-text-muted block">การแปลผล (Interpretation)</label>
+                  <label className="text-[11px] text-brand-text-muted block font-medium mb-1">
+                    การแปลผล (Interpretation)
+                  </label>
                   <textarea
                     rows={2}
                     value={t.interpretation}
                     onChange={(e) => handleUpdateThreshold(tIdx, 'interpretation', e.target.value)}
-                    className="w-full p-2 rounded-lg border border-brand-border bg-white text-xs resize-none"
+                    placeholder="รายละเอียดข้อสังเกตและผลการประเมิน..."
+                    className="w-full p-2 rounded-lg border border-brand-border bg-white text-xs text-brand-text focus:border-brand-blue focus:outline-none resize-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[11px] text-brand-text-muted block font-medium mb-1">
+                    คำแนะนำ (Recommendation - ทางเลือก)
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={t.recommendation || ''}
+                    onChange={(e) => handleUpdateThreshold(tIdx, 'recommendation', e.target.value)}
+                    placeholder="คำแนะนำการดูแลหรือกิจกรรมที่บ้าน..."
+                    className="w-full p-2 rounded-lg border border-brand-border bg-white text-xs text-brand-text focus:border-brand-blue focus:outline-none resize-none"
                   />
                 </div>
               </div>

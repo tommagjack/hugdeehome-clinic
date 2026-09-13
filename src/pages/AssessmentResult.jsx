@@ -127,7 +127,7 @@ export default function AssessmentResult({ settings }) {
         {/* Score and Status Pill */}
         <div className="inline-flex flex-col items-center mb-6">
           <Badge 
-            variant={matchedLevel.color === 'blue' ? 'blue' : matchedLevel.color === 'yellow' ? 'yellow' : 'pink'}
+            variant={matchedLevel.color || 'blue'}
             size="md"
             className="text-sm sm:text-base px-4 py-1.5 font-bold mb-3"
           >
