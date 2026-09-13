@@ -48,6 +48,39 @@ function apiPlugin() {
           }
         }
       });
+
+      server.middlewares.use('/api/upload', async (req, res) => {
+        res.setHeader('Content-Type', 'application/json');
+        if (req.method === 'POST') {
+          let body = '';
+          req.on('data', chunk => { body += chunk; });
+          req.on('end', async () => {
+            try {
+              const { filename, base64Data, folder = 'uploads' } = JSON.parse(body);
+              let mimeType = 'image/jpeg';
+              let base64Content = base64Data;
+              if (base64Data.includes(';base64,')) {
+                const parts = base64Data.split(';base64,');
+                mimeType = parts[0].replace('data:', '');
+                base64Content = parts[1];
+              }
+              const buffer = Buffer.from(base64Content, 'base64');
+              const safeFilename = `${Date.now()}_${filename.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+              const filePath = `${folder}/${safeFilename}`;
+              const { error } = await supabase.storage.from('website_data').upload(filePath, buffer, {
+                upsert: true,
+                contentType: mimeType
+              });
+              if (error) throw error;
+              const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/website_data/${filePath}`;
+              res.end(JSON.stringify({ success: true, url: publicUrl, path: filePath }));
+            } catch (err) {
+              res.statusCode = 500;
+              res.end(JSON.stringify({ error: err.message }));
+            }
+          });
+        }
+      });
     }
   };
 }

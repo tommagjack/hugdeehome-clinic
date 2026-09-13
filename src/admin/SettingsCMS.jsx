@@ -17,6 +17,7 @@ import Alert from '../components/common/Alert';
 import LoadingState from '../components/common/LoadingState';
 import Logo from '../components/common/Logo';
 import { storage } from '../services/storage';
+import { uploadImageToCloud } from '../services/imageUploader';
 
 export default function SettingsCMS({ activeTab = 'general' }) {
   const [settings, setSettings] = useState(null);
@@ -67,18 +68,23 @@ export default function SettingsCMS({ activeTab = 'general' }) {
     }
   };
 
-  const handleLogoUpload = (e) => {
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+
+  const handleLogoUpload = async (e) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 2 * 1024 * 1024) {
-        alert('ขนาดไฟล์ต้องไม่เกิน 2MB');
-        return;
+      setUploadingLogo(true);
+      try {
+        const cloudUrl = await uploadImageToCloud(file, 'branding');
+        if (cloudUrl) {
+          setLogoPreview(cloudUrl);
+        }
+      } catch (err) {
+        console.error('Logo upload error:', err);
+        alert('เกิดข้อผิดพลาดในการอัปโหลดรูปภาพ');
+      } finally {
+        setUploadingLogo(false);
       }
-      const reader = new FileReader();
-      reader.onload = () => {
-        setLogoPreview(reader.result);
-      };
-      reader.readAsDataURL(file);
     }
   };
 

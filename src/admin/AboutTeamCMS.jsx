@@ -20,6 +20,7 @@ import ConfirmDialog from '../components/common/ConfirmDialog';
 import LoadingState from '../components/common/LoadingState';
 import Alert from '../components/common/Alert';
 import { storage } from '../services/storage';
+import { uploadImageToCloud } from '../services/imageUploader';
 
 export default function AboutTeamCMS({ mode = 'team' }) { // 'team' or 'about'
   const [team, setTeam] = useState([]);
@@ -72,18 +73,23 @@ export default function AboutTeamCMS({ mode = 'team' }) { // 'team' or 'about'
     setFormData(member);
   };
 
-  const handlePhotoUpload = (e) => {
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+
+  const handlePhotoUpload = async (e) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 2 * 1024 * 1024) {
-        alert('ขนาดไฟล์รูปภาพต้องไม่เกิน 2MB');
-        return;
+      setUploadingPhoto(true);
+      try {
+        const cloudUrl = await uploadImageToCloud(file, 'team');
+        if (cloudUrl) {
+          setFormData(prev => ({ ...prev, photoUrl: cloudUrl }));
+        }
+      } catch (err) {
+        console.error('Photo upload failed:', err);
+        alert('เกิดข้อผิดพลาดในการอัปโหลดรูปภาพ');
+      } finally {
+        setUploadingPhoto(false);
       }
-      const reader = new FileReader();
-      reader.onload = () => {
-        setFormData(prev => ({ ...prev, photoUrl: reader.result }));
-      };
-      reader.readAsDataURL(file);
     }
   };
 
@@ -252,12 +258,13 @@ export default function AboutTeamCMS({ mode = 'team' }) { // 'team' or 'about'
                   </span>
                   
                   <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2.5">
-                    <label className="cursor-pointer inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-brand-blue text-brand-text font-semibold text-xs hover:bg-brand-blue-dark transition-colors shadow-sm">
-                      <Upload className="w-3.5 h-3.5" />
-                      <span>อัปโหลดรูปภาพ</span>
+                    <label className={`cursor-pointer inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-brand-blue text-brand-text font-semibold text-xs hover:bg-brand-blue-dark transition-colors shadow-sm ${uploadingPhoto ? 'opacity-60 cursor-not-allowed' : ''}`}>
+                      <Upload className={`w-3.5 h-3.5 ${uploadingPhoto ? 'animate-spin' : ''}`} />
+                      <span>{uploadingPhoto ? 'กำลังอัปโหลด...' : 'อัปโหลดรูปภาพ'}</span>
                       <input
                         type="file"
                         accept="image/*"
+                        disabled={uploadingPhoto}
                         onChange={handlePhotoUpload}
                         className="hidden"
                       />
