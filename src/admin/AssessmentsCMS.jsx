@@ -9,13 +9,15 @@ import {
   EyeOff, 
   Clock, 
   FileText,
-  Sliders
+  Sliders,
+  RotateCcw
 } from 'lucide-react';
 import Button from '../components/common/Button';
 import Badge from '../components/common/Badge';
 import ConfirmDialog from '../components/common/ConfirmDialog';
 import LoadingState from '../components/common/LoadingState';
 import { storage } from '../services/storage';
+import { INITIAL_ASSESSMENTS } from '../services/seedData';
 
 export default function AssessmentsCMS() {
   const [assessments, setAssessments] = useState([]);
@@ -36,7 +38,27 @@ export default function AssessmentsCMS() {
 
   useEffect(() => {
     loadAssessments();
+
+    const handleUpdate = () => {
+      loadAssessments();
+    };
+    window.addEventListener('hugdee_data_updated', handleUpdate);
+    return () => window.removeEventListener('hugdee_data_updated', handleUpdate);
   }, []);
+
+  const handleRestoreDefaults = async () => {
+    setLoading(true);
+    try {
+      for (const asm of INITIAL_ASSESSMENTS) {
+        await storage.saveAssessment(asm);
+      }
+      await loadAssessments();
+    } catch (err) {
+      console.error('Error restoring assessments:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleTogglePublish = async (asm) => {
     const updated = {
@@ -68,15 +90,17 @@ export default function AssessmentsCMS() {
             สร้างและปรับแต่งแบบคัดกรองออนไลน์ คำถาม และเกณฑ์คะแนน
           </p>
         </div>
-        <Button
-          to="/admin/assessment/builder/new"
-          variant="primary"
-          size="md"
-          icon={Plus}
-          className="font-semibold shadow-sm"
-        >
-          สร้างแบบประเมินใหม่
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            to="/admin/assessment/builder/new"
+            variant="primary"
+            size="md"
+            icon={Plus}
+            className="font-semibold shadow-sm"
+          >
+            สร้างแบบประเมินใหม่
+          </Button>
+        </div>
       </div>
 
       {/* Assessment Table / List */}
@@ -84,75 +108,107 @@ export default function AssessmentsCMS() {
         <LoadingState message="กำลังโหลดแบบประเมิน..." />
       ) : (
         <div className="bg-white rounded-3xl border border-brand-border shadow-soft overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-brand-cream/60 border-b border-brand-border text-xs uppercase tracking-wider text-brand-text font-semibold">
-                <tr>
-                  <th className="px-6 py-4">ลำดับ</th>
-                  <th className="px-6 py-4">ชื่อแบบประเมิน</th>
-                  <th className="px-6 py-4">หมวดหมู่</th>
-                  <th className="px-6 py-4">ช่วงวัย</th>
-                  <th className="px-6 py-4">จำนวนข้อ</th>
-                  <th className="px-6 py-4">สถานะ</th>
-                  <th className="px-6 py-4 text-right">จัดการ</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-brand-border/60">
-                {assessments.map((asm, idx) => (
-                  <tr key={asm.id} className="hover:bg-brand-warm-white/60 transition-colors">
-                    <td className="px-6 py-4 font-mono text-xs text-brand-text-muted">
-                      {idx + 1}
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="font-bold text-brand-text">{asm.title}</div>
-                      <div className="text-xs text-brand-text-muted line-clamp-1">{asm.description}</div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <Badge variant="yellow" size="sm">{asm.category}</Badge>
-                    </td>
-                    <td className="px-6 py-4 text-xs text-brand-text-muted">
-                      {asm.targetAge}
-                    </td>
-                    <td className="px-6 py-4 text-xs font-semibold text-brand-text">
-                      {asm.questions?.length || 0} ข้อ (~{asm.estimatedMinutes || 5} นาที)
-                    </td>
-                    <td className="px-6 py-4">
-                      <button
-                        onClick={() => handleTogglePublish(asm)}
-                        className={`inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border transition-colors ${
-                          asm.status === 'published'
-                            ? 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100'
-                            : 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100'
-                        }`}
-                      >
-                        {asm.status === 'published' ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
-                        <span>{asm.status === 'published' ? 'เผยแพร่' : 'ฉบับร่าง'}</span>
-                      </button>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <Link
-                          to={`/admin/assessment/builder/${asm.id}`}
-                          className="p-1.5 rounded-lg text-brand-brown hover:bg-brand-cream transition-colors flex items-center gap-1 text-xs font-semibold"
-                          title="เปิดใน Assessment Builder"
-                        >
-                          <Sliders className="w-4 h-4" />
-                          <span>Builder</span>
-                        </Link>
-                        <button
-                          onClick={() => setDeletingId(asm.id)}
-                          className="p-1.5 rounded-lg text-neutral-500 hover:text-brand-pink hover:bg-brand-pink/10 transition-colors"
-                          title="ลบ"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
+          {assessments.length === 0 ? (
+            <div className="p-12 text-center space-y-4">
+              <div className="w-14 h-14 mx-auto rounded-2xl bg-brand-cream/60 flex items-center justify-center text-brand-brown">
+                <ClipboardCheck className="w-7 h-7" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-brand-text">ยังไม่มีแบบประเมินในระบบ</h3>
+                <p className="text-xs text-brand-text-muted mt-1 max-w-md mx-auto">
+                  คุณสามารถสร้างแบบประเมินใหม่ขึ้นเอง หรือกดกู้คืนชุดแบบประเมินมาตรฐานเริ่มต้นของคลินิก
+                </p>
+              </div>
+              <div className="flex items-center justify-center gap-3 pt-2">
+                <Button
+                  to="/admin/assessment/builder/new"
+                  variant="primary"
+                  size="sm"
+                  icon={Plus}
+                >
+                  สร้างแบบประเมินใหม่
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  icon={RotateCcw}
+                  onClick={handleRestoreDefaults}
+                >
+                  กู้คืนแบบประเมินเริ่มต้น
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-brand-cream/60 border-b border-brand-border text-xs uppercase tracking-wider text-brand-text font-semibold">
+                  <tr>
+                    <th className="px-6 py-4">ลำดับ</th>
+                    <th className="px-6 py-4">ชื่อแบบประเมิน</th>
+                    <th className="px-6 py-4">หมวดหมู่</th>
+                    <th className="px-6 py-4">ช่วงวัย</th>
+                    <th className="px-6 py-4">จำนวนข้อ</th>
+                    <th className="px-6 py-4">สถานะ</th>
+                    <th className="px-6 py-4 text-right">จัดการ</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-brand-border/60">
+                  {assessments.map((asm, idx) => (
+                    <tr key={asm.id} className="hover:bg-brand-warm-white/60 transition-colors">
+                      <td className="px-6 py-4 font-mono text-xs text-brand-text-muted">
+                        {idx + 1}
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="font-bold text-brand-text">{asm.title}</div>
+                        <div className="text-xs text-brand-text-muted line-clamp-1">{asm.description}</div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <Badge variant="yellow" size="sm">{asm.category}</Badge>
+                      </td>
+                      <td className="px-6 py-4 text-xs text-brand-text-muted">
+                        {asm.targetAge}
+                      </td>
+                      <td className="px-6 py-4 text-xs font-semibold text-brand-text">
+                        {asm.questions?.length || 0} ข้อ (~{asm.estimatedMinutes || 5} นาที)
+                      </td>
+                      <td className="px-6 py-4">
+                        <button
+                          onClick={() => handleTogglePublish(asm)}
+                          className={`inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                            asm.status === 'published'
+                              ? 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100'
+                              : 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100'
+                          }`}
+                        >
+                          {asm.status === 'published' ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
+                          <span>{asm.status === 'published' ? 'เผยแพร่' : 'ฉบับร่าง'}</span>
+                        </button>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <Link
+                            to={`/admin/assessment/builder/${asm.id}`}
+                            className="p-1.5 rounded-lg text-brand-brown hover:bg-brand-cream transition-colors flex items-center gap-1 text-xs font-semibold"
+                            title="เปิดใน Assessment Builder"
+                          >
+                            <Sliders className="w-4 h-4" />
+                            <span>Builder</span>
+                          </Link>
+                          <button
+                            onClick={() => setDeletingId(asm.id)}
+                            className="p-1.5 rounded-lg text-neutral-500 hover:text-brand-pink hover:bg-brand-pink/10 transition-colors"
+                            title="ลบ"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 

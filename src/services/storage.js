@@ -4,7 +4,7 @@ import {
   INITIAL_TEAM,
   INITIAL_ASSESSMENTS,
   INITIAL_HOME_GUIDES
-} from './seedData';
+} from './seedData.js';
 
 const KEYS = {
   SETTINGS: 'hugdee_site_settings_v2',
@@ -217,20 +217,22 @@ export const storage = {
   async saveService(service) {
     const services = await this.getServices();
     let updated;
-    if (service.id) {
-      updated = services.map(s => (s.id === service.id ? { ...s, ...service } : s));
+    const srvId = service.id || `srv_${Date.now()}`;
+    const serviceToSave = {
+      ...service,
+      id: srvId,
+      displayOrder: service.displayOrder || services.length + 1
+    };
+    const exists = services.some(s => s.id === srvId);
+    if (exists) {
+      updated = services.map(s => (s.id === srvId ? { ...s, ...serviceToSave } : s));
     } else {
-      const newService = {
-        ...service,
-        id: `srv_${Date.now()}`,
-        displayOrder: services.length + 1
-      };
-      updated = [...services, newService];
+      updated = [...services, serviceToSave];
     }
     saveLocal(KEYS.SERVICES, updated);
     window.dispatchEvent(new CustomEvent('hugdee_data_updated', { detail: { key: 'services' } }));
     saveCloudData('services', updated);
-    return updated;
+    return serviceToSave;
   },
 
   async deleteService(id) {
@@ -251,20 +253,22 @@ export const storage = {
   async saveTeamMember(member) {
     const team = await this.getTeam();
     let updated;
-    if (member.id) {
-      updated = team.map(t => (t.id === member.id ? { ...t, ...member } : t));
+    const memberId = member.id || `team_${Date.now()}`;
+    const memberToSave = {
+      ...member,
+      id: memberId,
+      displayOrder: member.displayOrder || team.length + 1
+    };
+    const exists = team.some(t => t.id === memberId);
+    if (exists) {
+      updated = team.map(t => (t.id === memberId ? { ...t, ...memberToSave } : t));
     } else {
-      const newMember = {
-        ...member,
-        id: `team_${Date.now()}`,
-        displayOrder: team.length + 1
-      };
-      updated = [...team, newMember];
+      updated = [...team, memberToSave];
     }
     saveLocal(KEYS.TEAM, updated);
     window.dispatchEvent(new CustomEvent('hugdee_data_updated', { detail: { key: 'team' } }));
     saveCloudData('team', updated);
-    return updated;
+    return memberToSave;
   },
 
   async deleteTeamMember(id) {
@@ -278,7 +282,11 @@ export const storage = {
 
   // --- Dynamic Assessments ---
   async getAssessments() {
-    const assessments = loadLocal(KEYS.ASSESSMENTS, INITIAL_ASSESSMENTS);
+    const assessments = loadLocal(KEYS.ASSESSMENTS, null);
+    if (!assessments || !Array.isArray(assessments) || assessments.length === 0) {
+      saveLocal(KEYS.ASSESSMENTS, INITIAL_ASSESSMENTS);
+      return INITIAL_ASSESSMENTS;
+    }
     return assessments;
   },
 
@@ -290,20 +298,22 @@ export const storage = {
   async saveAssessment(assessment) {
     const assessments = await this.getAssessments();
     let updated;
-    if (assessment.id) {
-      updated = assessments.map(a => (a.id === assessment.id ? { ...a, ...assessment } : a));
+    const asmId = assessment.id || `asm_${Date.now()}`;
+    const assessmentToSave = {
+      ...assessment,
+      id: asmId,
+      slug: assessment.slug || `assessment-${Date.now()}`
+    };
+    const exists = assessments.some(a => a.id === asmId);
+    if (exists) {
+      updated = assessments.map(a => (a.id === asmId ? { ...a, ...assessmentToSave } : a));
     } else {
-      const newAsm = {
-        ...assessment,
-        id: `asm_${Date.now()}`,
-        slug: assessment.slug || `assessment-${Date.now()}`
-      };
-      updated = [...assessments, newAsm];
+      updated = [...assessments, assessmentToSave];
     }
     saveLocal(KEYS.ASSESSMENTS, updated);
     window.dispatchEvent(new CustomEvent('hugdee_data_updated', { detail: { key: 'assessments' } }));
     saveCloudData('assessments', updated);
-    return updated;
+    return assessmentToSave;
   },
 
   async deleteAssessment(id) {
@@ -347,21 +357,23 @@ export const storage = {
   async saveHomeGuide(guide) {
     const guides = await this.getHomeGuides();
     let updated;
-    if (guide.id) {
-      updated = guides.map(g => (g.id === guide.id ? { ...g, ...guide } : g));
+    const guideId = guide.id || `guide_${Date.now()}`;
+    const guideToSave = {
+      ...guide,
+      id: guideId,
+      publishedDate: guide.publishedDate || new Date().toISOString().split('T')[0],
+      displayOrder: guide.displayOrder || guides.length + 1
+    };
+    const exists = guides.some(g => g.id === guideId);
+    if (exists) {
+      updated = guides.map(g => (g.id === guideId ? { ...g, ...guideToSave } : g));
     } else {
-      const newGuide = {
-        ...guide,
-        id: `guide_${Date.now()}`,
-        publishedDate: guide.publishedDate || new Date().toISOString().split('T')[0],
-        displayOrder: guides.length + 1
-      };
-      updated = [...guides, newGuide];
+      updated = [...guides, guideToSave];
     }
     saveLocal(KEYS.HOME_GUIDES, updated);
     window.dispatchEvent(new CustomEvent('hugdee_data_updated', { detail: { key: 'home_guides' } }));
     saveCloudData('home_guides', updated);
-    return updated;
+    return guideToSave;
   },
 
   async deleteHomeGuide(id) {

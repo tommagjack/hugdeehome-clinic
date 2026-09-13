@@ -397,13 +397,14 @@ export default function AssessmentBuilder() {
     const payload = {
       ...assessment,
       status: statusOverride || assessment.status,
-      id: id === 'new' ? `asm_${Date.now()}` : assessment.id
+      id: id === 'new' ? (assessment.id || `asm_${Date.now()}`) : (assessment.id || id)
     };
-    await storage.saveAssessment(payload);
+    const saved = await storage.saveAssessment(payload);
+    setAssessment(saved || payload);
     setSaveSuccess(true);
     setTimeout(() => setSaveSuccess(false), 3000);
     if (id === 'new') {
-      navigate(`/admin/assessment/builder/${payload.id}`, { replace: true });
+      navigate(`/admin/assessment/builder/${saved?.id || payload.id}`, { replace: true });
     }
   };
 
