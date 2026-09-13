@@ -24,7 +24,10 @@ import {
   Heading2,
   Heading3,
   List,
-  Bold
+  Bold,
+  GripVertical,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-react';
 import Button from '../components/common/Button';
 import Badge from '../components/common/Badge';
@@ -65,6 +68,11 @@ export default function HomeGuideCMS() {
   const [importSuccess, setImportSuccess] = useState(null);
   const [activeImportTab, setActiveImportTab] = useState('file'); // 'file' | 'paste'
   const fileInputRef = useRef(null);
+
+  // Drag & Drop / Reordering state
+  const [draggedIndex, setDraggedIndex] = useState(null);
+  const [dragOverIndex, setDragOverIndex] = useState(null);
+  const [orderNotice, setOrderNotice] = useState(null);
 
   const [formData, setFormData] = useState({
     title: '',
@@ -318,6 +326,81 @@ export default function HomeGuideCMS() {
     exportGuidesToJson(guides);
   };
 
+  // --- Drag & Drop Reordering Handlers ---
+  const handleDragStart = (e, index) => {
+    setDraggedIndex(index);
+    e.dataTransfer.effectAllowed = 'move';
+    if (e.dataTransfer.setData) {
+      e.dataTransfer.setData('text/plain', String(index));
+    }
+  };
+
+  const handleDragOver = (e, index) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragOverIndex !== index) {
+      setDragOverIndex(index);
+    }
+  };
+
+  const handleDrop = async (e, targetIndex) => {
+    e.preventDefault();
+    if (draggedIndex === null || draggedIndex === targetIndex) {
+      setDraggedIndex(null);
+      setDragOverIndex(null);
+      return;
+    }
+
+    const sourceGuide = filtered[draggedIndex];
+    const targetGuide = filtered[targetIndex];
+    if (!sourceGuide || !targetGuide) {
+      setDraggedIndex(null);
+      setDragOverIndex(null);
+      return;
+    }
+
+    const sourceFullIdx = guides.findIndex(g => g.id === sourceGuide.id);
+    const targetFullIdx = guides.findIndex(g => g.id === targetGuide.id);
+
+    if (sourceFullIdx !== -1 && targetFullIdx !== -1) {
+      const updated = Array.from(guides);
+      const [moved] = updated.splice(sourceFullIdx, 1);
+      updated.splice(targetFullIdx, 0, moved);
+      setGuides(updated);
+      await storage.reorderHomeGuides(updated);
+      setOrderNotice(`ย้าย "${sourceGuide.title.slice(0, 24)}..." ไปยังลำดับที่ ${targetIndex + 1} เรียบร้อย`);
+      setTimeout(() => setOrderNotice(null), 3000);
+    }
+
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+  };
+
+  const handleMoveStep = async (index, direction) => {
+    const targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= filtered.length) return;
+
+    const sourceGuide = filtered[index];
+    const targetGuide = filtered[targetIndex];
+    const sourceFullIdx = guides.findIndex(g => g.id === sourceGuide.id);
+    const targetFullIdx = guides.findIndex(g => g.id === targetGuide.id);
+
+    if (sourceFullIdx !== -1 && targetFullIdx !== -1) {
+      const updated = Array.from(guides);
+      const [moved] = updated.splice(sourceFullIdx, 1);
+      updated.splice(targetFullIdx, 0, moved);
+      setGuides(updated);
+      await storage.reorderHomeGuides(updated);
+      setOrderNotice(`ย้ายบทความไปยังลำดับที่ ${targetIndex + 1} เรียบร้อย`);
+      setTimeout(() => setOrderNotice(null), 3000);
+    }
+  };
+
   const filtered = guides.filter(g => {
     const matchCat = selectedCategory === 'ทั้งหมด' || g.category === selectedCategory;
     const matchSearch = search.trim() === '' || g.title.toLowerCase().includes(search.toLowerCase());
@@ -442,25 +525,103 @@ export default function HomeGuideCMS() {
               )}
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-brand-cream/60 border-b border-brand-border text-xs uppercase tracking-wider text-brand-text font-semibold">
-                  <tr>
-                    <th className="px-6 py-4">ลำดับ</th>
-                    <th className="px-6 py-4">ชื่อบทความ</th>
-                    <th className="px-6 py-4">หมวดหมู่</th>
-                    <th className="px-6 py-4">วันที่เผยแพร่</th>
-                    <th className="px-6 py-4">ปักหมุดแนะนำ</th>
-                    <th className="px-6 py-4">สถานะ</th>
-                    <th className="px-6 py-4 text-right">จัดการ</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-brand-border/60">
-                  {filtered.map((guide, idx) => (
-                    <tr key={guide.id} className="hover:bg-brand-warm-white/60 transition-colors">
-                      <td className="px-6 py-4 font-mono text-xs text-brand-text-muted">
-                        {idx + 1}
-                      </td>
+            <div>
+              {/* Drag and Drop Helper Bar */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between px-6 py-2.5 bg-brand-cream/30 border-b border-brand-border/60 text-xs text-brand-text-muted gap-2">
+                <div className="flex items-center gap-2">
+                  <div className="w-5 h-5 rounded bg-brand-cream text-brand-brown flex items-center justify-center flex-shrink-0">
+                    <GripVertical className="w-3.5 h-3.5" />
+                  </div>
+                  <span>
+                    <b>ลากวางสลับตำแหน่ง:</b> กดค้างที่ไอคอนจุด 6 จุด <GripVertical className="w-3.5 h-3.5 inline text-neutral-400" /> แล้วลากเพื่อสลับ หรือคลิกลูกศรขึ้น/ลง เพื่อจัดลำดับบทความ
+                  </span>
+                </div>
+                {orderNotice && (
+                  <span className="text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full font-medium text-[11px] animate-fade-in flex items-center gap-1 self-start sm:self-auto shadow-sm">
+                    <Check className="w-3 h-3 text-emerald-600" />
+                    {orderNotice}
+                  </span>
+                )}
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-brand-cream/60 border-b border-brand-border text-xs uppercase tracking-wider text-brand-text font-semibold">
+                    <tr>
+                      <th className="px-4 py-4 w-24 text-center">สลับ / ลำดับ</th>
+                      <th className="px-6 py-4">ชื่อบทความ</th>
+                      <th className="px-6 py-4">หมวดหมู่</th>
+                      <th className="px-6 py-4">วันที่เผยแพร่</th>
+                      <th className="px-6 py-4">ปักหมุดแนะนำ</th>
+                      <th className="px-6 py-4">สถานะ</th>
+                      <th className="px-6 py-4 text-right">จัดการ</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-brand-border/60">
+                    {filtered.map((guide, idx) => (
+                      <tr 
+                        key={guide.id}
+                        draggable
+                        onDragStart={(e) => handleDragStart(e, idx)}
+                        onDragOver={(e) => handleDragOver(e, idx)}
+                        onDrop={(e) => handleDrop(e, idx)}
+                        onDragEnd={handleDragEnd}
+                        className={`transition-all duration-150 select-none ${
+                          draggedIndex === idx
+                            ? 'opacity-40 bg-brand-soft-yellow/50 border-2 border-dashed border-amber-400'
+                            : dragOverIndex === idx
+                              ? 'border-t-4 border-brand-blue bg-brand-soft-blue/20'
+                              : 'hover:bg-brand-warm-white/60'
+                        }`}
+                      >
+                        <td className="px-4 py-3">
+                          <div className="flex items-center justify-center gap-1.5">
+                            {/* Drag handle */}
+                            <div
+                              draggable
+                              onDragStart={(e) => handleDragStart(e, idx)}
+                              className="p-1 rounded cursor-grab active:cursor-grabbing text-neutral-400 hover:text-brand-brown hover:bg-brand-cream transition-colors"
+                              title="คลิกค้างแล้วลากเพื่อสลับตำแหน่ง (Drag & Drop)"
+                            >
+                              <GripVertical className="w-4 h-4" />
+                            </div>
+
+                            {/* Order Number */}
+                            <span className="font-mono text-xs font-bold text-brand-text-muted w-4 text-center">
+                              {idx + 1}
+                            </span>
+
+                            {/* Up / Down Arrow step buttons */}
+                            <div className="flex flex-col -space-y-0.5">
+                              <button
+                                type="button"
+                                disabled={idx === 0}
+                                onClick={() => handleMoveStep(idx, -1)}
+                                className={`p-0.5 rounded transition-colors ${
+                                  idx === 0
+                                    ? 'text-neutral-200 cursor-not-allowed'
+                                    : 'text-neutral-400 hover:text-brand-brown hover:bg-brand-cream'
+                                }`}
+                                title="เลื่อนขึ้น 1 ลำดับ"
+                              >
+                                <ArrowUp className="w-3 h-3" />
+                              </button>
+                              <button
+                                type="button"
+                                disabled={idx === filtered.length - 1}
+                                onClick={() => handleMoveStep(idx, 1)}
+                                className={`p-0.5 rounded transition-colors ${
+                                  idx === filtered.length - 1
+                                    ? 'text-neutral-200 cursor-not-allowed'
+                                    : 'text-neutral-400 hover:text-brand-brown hover:bg-brand-cream'
+                                }`}
+                                title="เลื่อนลง 1 ลำดับ"
+                              >
+                                <ArrowDown className="w-3 h-3" />
+                              </button>
+                            </div>
+                          </div>
+                        </td>
                       <td className="px-6 py-4 max-w-xs">
                         <div className="font-bold text-brand-text line-clamp-1">{guide.title}</div>
                         <div className="text-xs text-brand-text-muted line-clamp-1">{guide.excerpt}</div>
@@ -527,9 +688,10 @@ export default function HomeGuideCMS() {
                 </tbody>
               </table>
             </div>
-          )}
-        </div>
-      )}
+          </div>
+        )}
+      </div>
+    )}
 
       {/* Edit / Create Article Modal */}
       {editingGuide && (

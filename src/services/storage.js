@@ -385,6 +385,17 @@ export const storage = {
     return updated;
   },
 
+  async reorderHomeGuides(reorderedGuides) {
+    const updated = reorderedGuides.map((g, idx) => ({
+      ...g,
+      displayOrder: idx + 1
+    }));
+    saveLocal(KEYS.HOME_GUIDES, updated);
+    window.dispatchEvent(new CustomEvent('hugdee_data_updated', { detail: { key: 'home_guides' } }));
+    saveCloudData('home_guides', updated);
+    return updated;
+  },
+
   // --- Inquiries (Contact messages) ---
   async getInquiries() {
     return loadLocal(KEYS.INQUIRIES, []);
